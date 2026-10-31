@@ -52,14 +52,7 @@ if selected_month != "All":
 if selected_subject != "All":
     filtered_df = filtered_df[filtered_df["Subject"] == selected_subject]
 
-# زر تحميل البيانات المفلترة
-st.sidebar.markdown("---")
-st.sidebar.download_button(
-    label="⬇️ تحميل البيانات المفلترة (CSV)",
-    data=filtered_df.drop(columns="Month").to_csv(index=False).encode("utf-8-sig"),
-    file_name="filtered_study_data.csv",
-    mime="text/csv",
-)
+
 
 # ---------------- لو مفيش بيانات ----------------
 if filtered_df.empty:
@@ -132,17 +125,6 @@ with tab2:
 
 # ===== 3) النوم =====
 with tab3:
-    st.markdown("#### 😴 النوم مقابل المذاكرة (كل نقطة يوم)")
-    fig = px.scatter(daily, x="Sleep", y="Study", hover_data=["Date"],
-                     labels={"Sleep": "ساعات النوم", "Study": "ساعات المذاكرة (إجمالي اليوم)"},
-                     color_discrete_sequence=[BLUE])
-    fig.update_traces(marker=dict(size=10, opacity=0.75))
-    st.plotly_chart(fig, use_container_width=True)
-
-    if len(daily) > 1:
-        corr = daily["Sleep"].corr(daily["Study"])
-        st.metric("معامل الارتباط بين النوم والمذاكرة", f"{corr:.2f}")
-
     st.markdown("#### 🌙 ساعات النوم اليومية")
     fig = px.line(daily, x="Date", y="Sleep", markers=True,
                   labels={"Date": "التاريخ", "Sleep": "ساعات النوم"})
