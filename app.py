@@ -101,6 +101,12 @@ if not filtered_df.empty:
     plt.tight_layout()
     st.pyplot(fig)
 
+        # تجميع البيانات على مستوى اليوم
+    daily = (
+        filtered_df.groupby("Date")
+        .agg(Study=("StudyHours", "sum"), Sleep=("SleepHours", "mean"))
+        .sort_index()
+    )
 
     # 2) ساعات المذاكرة اليومية
     st.markdown("#### 📅 ساعات المذاكرة اليومية")
