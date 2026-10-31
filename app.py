@@ -90,10 +90,6 @@ if not filtered_df.empty:
         st.write(f"- الانحراف المعياري (Std): {hours.std():.2f}")
         st.write(f"- المدى الربيعي (IQR): {q3 - q1:.2f}")
 
-    with col_b:
-        st.markdown("#### 🔹 مقارنة المواد")
-        summary = filtered_df.groupby("Subject")["StudyHours"].agg(["count", "mean", "median", "std"])
-        st.dataframe(summary.round(2))
 
     # Histogram + Boxplot
     st.markdown("#### 📉 التوزيع والـ Outliers")
@@ -105,20 +101,6 @@ if not filtered_df.empty:
     plt.tight_layout()
     st.pyplot(fig)
 
-    # 1) جلسات المذاكرة الشاذة (Outliers) بقاعدة IQR
-    st.markdown("#### 🚨 جلسات المذاكرة الشاذة (Outliers)")
-    iqr = q3 - q1
-    lower = q1 - 1.5 * iqr
-    upper = q3 + 1.5 * iqr
-    outliers = filtered_df[(hours < lower) | (hours > upper)]
-    st.write(f"الحدود الطبيعية: من {lower:.1f} إلى {upper:.1f} ساعة، وعدد الجلسات الشاذة: {len(outliers)}")
-    if not outliers.empty:
-        st.dataframe(outliers[["Date", "Subject", "StudyHours"]])
-
-    # بيانات يومية (مجموع المذاكرة ومتوسط النوم لكل يوم)
-    daily = filtered_df.groupby("Date").agg(
-        Study=("StudyHours", "sum"), Sleep=("SleepHours", "mean")
-    )
 
     # 2) ساعات المذاكرة اليومية
     st.markdown("#### 📅 ساعات المذاكرة اليومية")
@@ -159,6 +141,4 @@ if not filtered_df.empty:
 else:
     st.warning("لا توجد بيانات للفلتر الحالي.")
 
-st.markdown("---")
-if st.checkbox("📋 عرض السجل التفصيلي"):
-    st.dataframe(filtered_df)
+
