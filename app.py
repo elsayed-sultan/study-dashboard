@@ -95,18 +95,6 @@ if not filtered_df.empty:
         summary = filtered_df.groupby("Subject")["StudyHours"].agg(["count", "mean", "median", "std"])
         st.dataframe(summary.round(2))
 
-    # Insight للإحصاء
-    if hours.mean() > hours.median() * 1.1:
-        st.info(
-            f"💡 Insight: متوسط الجلسة ({hours.mean():.1f} ساعة) أكبر من الوسيط ({hours.median():.1f} ساعة) "
-            "بفرق واضح، يعني فيه جلسات طويلة جداً بتشد المتوسط لفوق، والوسيط أصدق في تمثيل الجلسة العادية."
-        )
-    else:
-        st.info(
-            f"💡 Insight: المتوسط ({hours.mean():.1f}) والوسيط ({hours.median():.1f}) قريبين من بعض، "
-            "يعني جلسات المذاكرة متوازنة ومفيش جلسات طويلة بتشد المتوسط."
-        )
-
     # Histogram + Boxplot
     st.markdown("#### 📉 التوزيع والـ Outliers")
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -117,16 +105,6 @@ if not filtered_df.empty:
     plt.tight_layout()
     st.pyplot(fig)
 
-    subj_median = filtered_df.groupby("Subject")["StudyHours"].median()
-    if hours.skew() > 0.5:
-        shape_txt = "أغلب الجلسات قصيرة وفيه ذيل طويل ناحية الجلسات الطويلة."
-    else:
-        shape_txt = "توزيع طول الجلسات متماثل تقريباً من غير ذيل واضح."
-    st.info(
-        f"💡 Insight: {shape_txt} "
-        f"وأعلى وسيط للجلسة كان لمادة {subj_median.idxmax()} ({subj_median.max():.1f} ساعة)."
-    )
-
     # 1) جلسات المذاكرة الشاذة (Outliers) بقاعدة IQR
     st.markdown("#### 🚨 جلسات المذاكرة الشاذة (Outliers)")
     iqr = q3 - q1
@@ -136,14 +114,6 @@ if not filtered_df.empty:
     st.write(f"الحدود الطبيعية: من {lower:.1f} إلى {upper:.1f} ساعة، وعدد الجلسات الشاذة: {len(outliers)}")
     if not outliers.empty:
         st.dataframe(outliers[["Date", "Subject", "StudyHours"]])
-        share = len(outliers) / len(filtered_df) * 100
-        st.info(
-            f"💡 Insight: عدد الجلسات الشاذة {len(outliers)} ({share:.1f}% من الجلسات)، "
-            f"وأطولهم {outliers['StudyHours'].max():.1f} ساعة. "
-            "الـ IQR بيتحسب على الفلتر الحالي، فاختاري مادة واحدة عشان الحدود تبقى أدق."
-        )
-    else:
-        st.info("💡 Insight: مفيش جلسات شاذة في الفلتر الحالي.")
 
     # بيانات يومية (مجموع المذاكرة ومتوسط النوم لكل يوم)
     daily = filtered_df.groupby("Date").agg(
@@ -153,20 +123,11 @@ if not filtered_df.empty:
     # 2) ساعات المذاكرة اليومية
     st.markdown("#### 📅 ساعات المذاكرة اليومية")
     st.line_chart(daily["Study"])
-    st.info(
-        f"💡 Insight: أكتر يوم مذاكرة كان {daily['Study'].idxmax().strftime('%Y-%m-%d')} "
-        f"بمجموع {daily['Study'].max():.1f} ساعة، ومتوسط المذاكرة اليومية {daily['Study'].mean():.1f} ساعة."
-    )
 
     # 3) إجمالي ساعات كل مادة
     st.markdown("#### 🗂️ إجمالي ساعات كل مادة")
     subj_total = filtered_df.groupby("Subject")["StudyHours"].sum()
     st.bar_chart(subj_total)
-    top_share = subj_total.max() / subj_total.sum() * 100
-    st.info(
-        f"💡 Insight: مادة {subj_total.idxmax()} أخدت أكتر وقت بإجمالي "
-        f"{subj_total.max():.1f} ساعة ({top_share:.1f}% من وقت المذاكرة)."
-    )
 
     # 4) نسبة كل مادة (Pie)
     st.markdown("#### 🥧 نسبة كل مادة من وقت المذاكرة")
@@ -180,19 +141,11 @@ if not filtered_df.empty:
         colors=pie_colors[:len(subj_total)],
     )
     st.pyplot(fig2)
-    st.info(
-        f"💡 Insight: أقل مادة وقتاً هي {subj_total.idxmin()} "
-        f"({subj_total.min() / subj_total.sum() * 100:.1f}% من وقت المذاكرة)."
-    )
 
     # 5) إجمالي كل شهر
     st.markdown("#### 📆 إجمالي ساعات كل شهر")
     month_total = filtered_df.groupby("Month")["StudyHours"].sum()
     st.bar_chart(month_total)
-    if len(month_total) > 1:
-        st.info(
-            f"💡 Insight: أكتر شهر مذاكرة هو {month_total.idxmax()} ({month_total.max():.1f} ساعة)."
-        )
 
     # 6) النوم مقابل المذاكرة (Scatter)
     st.markdown("#### 😴 النوم مقابل المذاكرة (كل نقطة يوم)")
@@ -202,21 +155,6 @@ if not filtered_df.empty:
     ax3.set_ylabel("Study Hours (daily total)")
     plt.tight_layout()
     st.pyplot(fig3)
-
-    if len(daily) >= 3:
-        corr = daily["Sleep"].corr(daily["Study"])
-        if pd.isna(corr) or abs(corr) < 0.2:
-            corr_txt = "مفيش علاقة واضحة بين ساعات النوم وساعات المذاكرة في اليوم."
-        elif corr > 0:
-            corr_txt = "كل ما ساعات النوم زادت، ساعات المذاكرة بتميل تزيد (علاقة طردية)."
-        else:
-            corr_txt = "كل ما ساعات النوم قلّت، ساعات المذاكرة بتميل تزيد (علاقة عكسية)."
-        low_sleep = daily[daily["Sleep"] < 5]
-        st.info(
-            f"💡 Insight: معامل الارتباط ({corr:.2f}). {corr_txt} "
-            f"وعدد الأيام اللي نومها أقل من 5 ساعات: {len(low_sleep)}. "
-            "الارتباط مش معناه إن واحد سبب التاني."
-        )
 
 else:
     st.warning("لا توجد بيانات للفلتر الحالي.")
