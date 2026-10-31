@@ -1,8 +1,6 @@
 import pandas as pd
-import numpy as np
 import streamlit as st
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
 
 st.set_page_config(page_title="Study & Sleep Dashboard", page_icon="📚", layout="wide")
 
@@ -23,6 +21,8 @@ html, body, [class*="css"], h1, h2, h3, h4, p {
 </style>
 """, unsafe_allow_html=True)
 
+BLUE = "#3A7CA5"
+
 st.title("📚 لوحة متابعة المذاكرة والنوم")
 st.write("متابعة ساعات المذاكرة وساعات النوم والإحصاء الوصفي لها.")
 
@@ -35,11 +35,10 @@ def load_data(path):
 
 
 df = load_data("study_data.csv")
-
-# Sidebar
-st.sidebar.header("⚙️ خيارات التصفية")
-
 df["Month"] = df["Date"].dt.strftime("%Y-%m")
+
+# ---------------- Sidebar ----------------
+st.sidebar.header("⚙️ خيارات التصفية")
 
 months = ["All"] + sorted(df["Month"].unique())
 selected_month = st.sidebar.selectbox("اختاري الشهر", months)
@@ -53,98 +52,126 @@ if selected_month != "All":
 if selected_subject != "All":
     filtered_df = filtered_df[filtered_df["Subject"] == selected_subject]
 
-# KPIs
-st.markdown("### 📊 الملخص")
-col1, col2, col3, col4 = st.columns(4)
-
-count = len(filtered_df)
-total_hours = filtered_df["StudyHours"].sum()
-avg_sleep = filtered_df["SleepHours"].mean() if count > 0 else 0
-top_subject = (
-    filtered_df.groupby("Subject")["StudyHours"].sum().idxmax() if count > 0 else "-"
+# زر تحميل البيانات المفلترة
+st.sidebar.markdown("---")
+st.sidebar.download_button(
+    label="⬇️ تحميل البيانات المفلترة (CSV)",
+    data=filtered_df.drop(columns="Month").to_csv(index=False).encode("utf-8-sig"),
+    file_name="filtered_study_data.csv",
+    mime="text/csv",
 )
 
+# ---------------- لو مفيش بيانات ----------------
+if filtered_df.empty:
+    st.warning("لا توجد بيانات للفلتر الحالي.")
+    st.stop()
+
+# ---------------- KPIs ----------------
+count = len(filtered_df)
+total_hours = filtered_df["StudyHours"].sum()
+avg_sleep = filtered_df["SleepHours"].mean()
+top_subject = filtered_df.groupby("Subject")["StudyHours"].sum().idxmax()
+
+col1, col2, col3, col4 = st.columns(4)
 col1.metric("عدد جلسات المذاكرة", count)
 col2.metric("إجمالي ساعات المذاكرة", f"{total_hours:.1f} ساعة")
 col3.metric("متوسط ساعات النوم", f"{avg_sleep:.1f} ساعة")
 col4.metric("أكتر مادة مذاكرة", top_subject)
 
-# الإحصاء الوصفي
-st.markdown("---")
-st.subheader("📈 الإحصاء الوصفي والتوزيعات")
+# ---------------- تجميع على مستوى اليوم ----------------
+daily = (
+    filtered_df.groupby("Date")
+    .agg(Study=("StudyHours", "sum"), Sleep=("SleepHours", "mean"))
+    .sort_index()
+    .reset_index()
+)
 
-if not filtered_df.empty:
+# ---------------- Tabs ----------------
+tab1, tab2, tab3, tab4 = st.tabs(["📊 الملخص", "📉 التوزيعات", "😴 النوم", "🗂️ المواد"])
+
+# ===== 1) الملخص =====
+with tab1:
     hours = filtered_df["StudyHours"]
-    q1 = hours.quantile(0.25)
-    q3 = hours.quantile(0.75)
+    q1, q3 = hours.quantile(0.25), hours.quantile(0.75)
 
     col_a, col_b = st.columns(2)
-
     with col_a:
         st.markdown("#### 🔹 النزعة المركزية (ساعات المذاكرة)")
         st.write(f"- المتوسط (Mean): {hours.mean():.2f}")
         st.write(f"- الوسيط (Median): {hours.median():.2f}")
         st.write(f"- المنوال (Mode): {hours.mode().iloc[0]}")
-
+    with col_b:
         st.markdown("#### 🔹 التشتت")
         st.write(f"- الانحراف المعياري (Std): {hours.std():.2f}")
         st.write(f"- المدى الربيعي (IQR): {q3 - q1:.2f}")
 
-
-    # Histogram + Boxplot
-    st.markdown("#### 📉 التوزيع والـ Outliers")
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    sns.histplot(data=filtered_df, x="StudyHours", kde=True, bins=10, ax=axes[0], color="#3A7CA5")
-    axes[0].set_title("Study Hours Distribution")
-    sns.boxplot(data=filtered_df, x="Subject", y="StudyHours", ax=axes[1], color="#A9CCE3")
-    axes[1].set_title("Boxplot by Subject")
-    plt.tight_layout()
-    st.pyplot(fig)
-
-        # تجميع البيانات على مستوى اليوم
-    daily = (
-        filtered_df.groupby("Date")
-        .agg(Study=("StudyHours", "sum"), Sleep=("SleepHours", "mean"))
-        .sort_index()
-    )
-
-    # 2) ساعات المذاكرة اليومية
     st.markdown("#### 📅 ساعات المذاكرة اليومية")
-    st.line_chart(daily["Study"])
+    fig = px.line(daily, x="Date", y="Study", markers=True,
+                  labels={"Date": "التاريخ", "Study": "ساعات المذاكرة"})
+    fig.update_traces(line_color=BLUE)
+    st.plotly_chart(fig, use_container_width=True)
 
-    # 3) إجمالي ساعات كل مادة
-    st.markdown("#### 🗂️ إجمالي ساعات كل مادة")
-    subj_total = filtered_df.groupby("Subject")["StudyHours"].sum()
-    st.bar_chart(subj_total)
+    with st.expander("عرض الجدول"):
+        st.dataframe(filtered_df.drop(columns="Month"), use_container_width=True)
 
-    # 4) نسبة كل مادة (Pie)
-    st.markdown("#### 🥧 نسبة كل مادة من وقت المذاكرة")
-    pie_colors = ["#3A7CA5", "#A9CCE3", "#2F6690", "#81C3D7", "#D9E8F2"]
-    fig2, ax2 = plt.subplots(figsize=(5, 5))
-    ax2.pie(
-        subj_total,
-        labels=subj_total.index,
-        autopct="%1.1f%%",
-        startangle=90,
-        colors=pie_colors[:len(subj_total)],
-    )
-    st.pyplot(fig2)
+# ===== 2) التوزيعات =====
+with tab2:
+    st.markdown("#### 📉 التوزيع والـ Outliers")
+    c1, c2 = st.columns(2)
+    with c1:
+        fig = px.histogram(filtered_df, x="StudyHours", nbins=10,
+                           title="Study Hours Distribution",
+                           color_discrete_sequence=[BLUE])
+        fig.update_layout(bargap=0.05)
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        fig = px.box(filtered_df, x="Subject", y="StudyHours",
+                     title="Boxplot by Subject",
+                     color_discrete_sequence=["#A9CCE3"])
+        st.plotly_chart(fig, use_container_width=True)
 
-    # 5) إجمالي كل شهر
-    st.markdown("#### 📆 إجمالي ساعات كل شهر")
-    month_total = filtered_df.groupby("Month")["StudyHours"].sum()
-    st.bar_chart(month_total)
-
-    # 6) النوم مقابل المذاكرة (Scatter)
+# ===== 3) النوم =====
+with tab3:
     st.markdown("#### 😴 النوم مقابل المذاكرة (كل نقطة يوم)")
-    fig3, ax3 = plt.subplots(figsize=(8, 4))
-    ax3.scatter(daily["Sleep"], daily["Study"], color="#3A7CA5", alpha=0.7)
-    ax3.set_xlabel("Sleep Hours")
-    ax3.set_ylabel("Study Hours (daily total)")
-    plt.tight_layout()
-    st.pyplot(fig3)
+    fig = px.scatter(daily, x="Sleep", y="Study", hover_data=["Date"],
+                     labels={"Sleep": "ساعات النوم", "Study": "ساعات المذاكرة (إجمالي اليوم)"},
+                     color_discrete_sequence=[BLUE])
+    fig.update_traces(marker=dict(size=10, opacity=0.75))
+    st.plotly_chart(fig, use_container_width=True)
 
-else:
-    st.warning("لا توجد بيانات للفلتر الحالي.")
+    if len(daily) > 1:
+        corr = daily["Sleep"].corr(daily["Study"])
+        st.metric("معامل الارتباط بين النوم والمذاكرة", f"{corr:.2f}")
+
+    st.markdown("#### 🌙 ساعات النوم اليومية")
+    fig = px.line(daily, x="Date", y="Sleep", markers=True,
+                  labels={"Date": "التاريخ", "Sleep": "ساعات النوم"})
+    fig.update_traces(line_color="#2F6690")
+    st.plotly_chart(fig, use_container_width=True)
+
+# ===== 4) المواد =====
+with tab4:
+    subj_total = filtered_df.groupby("Subject")["StudyHours"].sum().reset_index()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### 🗂️ إجمالي ساعات كل مادة")
+        fig = px.bar(subj_total, x="Subject", y="StudyHours",
+                     labels={"Subject": "المادة", "StudyHours": "الساعات"},
+                     color_discrete_sequence=[BLUE])
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        st.markdown("#### 🥧 نسبة كل مادة من وقت المذاكرة")
+        fig = px.pie(subj_total, names="Subject", values="StudyHours",
+                     color_discrete_sequence=px.colors.sequential.Blues_r)
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("#### 📆 إجمالي ساعات كل شهر")
+    month_total = filtered_df.groupby("Month")["StudyHours"].sum().reset_index()
+    fig = px.bar(month_total, x="Month", y="StudyHours",
+                 labels={"Month": "الشهر", "StudyHours": "الساعات"},
+                 color_discrete_sequence=[BLUE])
+    st.plotly_chart(fig, use_container_width=True)
+
 
 
